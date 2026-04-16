@@ -1,16 +1,30 @@
 import json
 import os
 import select
+import shutil
 import sys
 import termios
 import tty
 
-from src.cp_fetch.config import DEFAULTS, FILE_EXTENSIONS, SETTINGS_PATH
+from src.cp_fetch.config import DEFAULTS, DEFAULTS_PATH, FILE_EXTENSIONS, SETTINGS_PATH
+
+_GREEN = "\033[32m"
+_RESET = "\033[0m"
 
 
 # ---------------------------------------------------------------------------
 # Terminal helpers
 # ---------------------------------------------------------------------------
+
+
+def _alt_screen_enter():
+    sys.stdout.write("\033[?1049h")
+    sys.stdout.flush()
+
+
+def _alt_screen_exit():
+    sys.stdout.write("\033[?1049l")
+    sys.stdout.flush()
 
 def _read_key():
     """Read one keypress, returning the key string (handles arrow-key sequences)."""
@@ -20,7 +34,6 @@ def _read_key():
         tty.setraw(fd)
         ch = os.read(fd, 1)
         if ch == b"\x1b":
-            # Peek to distinguish bare Escape from arrow / other sequences
             if select.select([fd], [], [], 0.05)[0]:
                 ch2 = os.read(fd, 1)
                 if ch2 == b"[" and select.select([fd], [], [], 0.05)[0]:
@@ -32,16 +45,63 @@ def _read_key():
         termios.tcsetattr(fd, termios.TCSADRAIN, old)
 
 
+def _prompt_with_esc(label, current):
+    """
+    Inline text prompt with Esc-to-go-back support.
+
+    Returns the entered string (may be empty), or None if Esc was pressed.
+    """
+    sys.stdout.write(f"  {label} [{current}] (Esc: back): ")
+    sys.stdout.flush()
+
+    fd = sys.stdin.fileno()
+    old = termios.tcgetattr(fd)
+    buf = []
+    try:
+        tty.setraw(fd)
+        while True:
+            ch = os.read(fd, 1)
+
+            if ch == b"\x1b":
+                # Peek for escape sequence (arrow keys etc.) — consume and ignore
+                if select.select([fd], [], [], 0.05)[0]:
+                    ch2 = os.read(fd, 1)
+                    if ch2 == b"[" and select.select([fd], [], [], 0.05)[0]:
+                        os.read(fd, 1)
+                else:
+                    # Bare Escape → cancel
+                    print()
+                    return None
+
+            elif ch in (b"\r", b"\n"):
+                print()
+                return "".join(buf)
+
+            elif ch == b"\x7f":  # Backspace
+                if buf:
+                    buf.pop()
+                    sys.stdout.write("\b \b")
+                    sys.stdout.flush()
+
+            elif ch == b"\x03":  # Ctrl+C
+                print()
+                raise KeyboardInterrupt
+
+            elif ch[0] >= 32:  # Printable character
+                char = ch.decode("utf-8", errors="ignore")
+                buf.append(char)
+                sys.stdout.write(char)
+                sys.stdout.flush()
+
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old)
+
+
 def _arrow_select(title, options, current=0):
     """
     Display *options* with arrow-key navigation.
 
     Returns the chosen index, or -1 if the user pressed Esc (go back).
-
-    Keys:
-      Up / Down  – move cursor
-      Enter      – confirm
-      Esc        – go back to the previous screen
     """
     idx = current
     n = len(options)
@@ -53,31 +113,31 @@ def _arrow_select(title, options, current=0):
             "",
         ]
         for i, opt in enumerate(options):
-            marker = "> " if i == idx else "  "
-            rows.append(f"  {marker}{opt}")
+            if i == idx:
+                rows.append(f"  {_GREEN}> {opt}{_RESET}")
+            else:
+                rows.append(f"    {opt}")
         return rows
 
-    # Initial render
     print("\n".join(_lines()))
     sys.stdout.flush()
 
     while True:
         key = _read_key()
 
-        if key == "\x1b[A":      # Up arrow
+        if key == "\x1b[A":
             idx = (idx - 1) % n
-        elif key == "\x1b[B":    # Down arrow
+        elif key == "\x1b[B":
             idx = (idx + 1) % n
-        elif key in ("\r", "\n"): # Enter – confirm
+        elif key in ("\r", "\n"):
             print()
             return idx
-        elif key == "\x1b":      # Escape – go back
+        elif key == "\x1b":
             print()
             return -1
         else:
             continue
 
-        # Redraw in-place: go up len(rows) lines, clear to end, reprint
         rows = _lines()
         sys.stdout.write(f"\033[{len(rows)}A\033[J")
         print("\n".join(rows))
@@ -105,11 +165,6 @@ def _get(settings, key):
     return settings.get(key, DEFAULTS[key])
 
 
-def _prompt(label, current):
-    val = input(f"  {label} [{current}]: ").strip()
-    return val if val else None
-
-
 # ---------------------------------------------------------------------------
 # Sub-menus
 # ---------------------------------------------------------------------------
@@ -121,7 +176,7 @@ def _language_menu(settings):
 
     idx = _arrow_select("Select language", langs, current=current_idx)
     if idx == -1:
-        return  # Esc – back to main menu
+        return
 
     settings["language"] = langs[idx]
     _save(settings)
@@ -134,7 +189,7 @@ def _templates_menu(settings):
     while True:
         idx = _arrow_select("Select language to edit template", langs)
         if idx == -1:
-            break  # Esc – back to main menu
+            break
 
         lang = langs[idx]
 
@@ -163,58 +218,93 @@ def _templates_menu(settings):
             _save(settings)
 
 
+def _reset_to_defaults():
+    confirm = input("  Reset all settings to defaults? [y/N]: ").strip().lower()
+    if confirm == "y":
+        shutil.copy(DEFAULTS_PATH, SETTINGS_PATH)
+        print("  Reset to defaults.")
+
+
 # ---------------------------------------------------------------------------
 # Main menu
 # ---------------------------------------------------------------------------
 
+_HANDLERS = [
+    "language",
+    "port",
+    "output_dir",
+    "test_subdir",
+    "templates",
+    "reset",
+    "exit",
+]
+
+
 def menu():
+    _alt_screen_enter()
+    try:
+        _menu()
+    finally:
+        _alt_screen_exit()
+
+
+def _menu():
     print("\n+==============================+")
     print("|   cp-fetch  Configuration    |")
     print("+==============================+")
 
+    idx = 0  # remember cursor position between iterations
     while True:
         settings = _load()
         output_dir = _get(settings, "output_dir")
 
-        print(f"\n  1. Language    :  {_get(settings, 'language')}")
-        print(f"  2. Port        :  {_get(settings, 'port')}")
-        print(f"  3. Output dir  :  {output_dir or '(project root)'}")
-        print(f"  4. Test subdir :  {_get(settings, 'test_subdir')}")
-        print(f"  5. Templates")
-        print(f"  0. Exit")
+        options = [
+            f"Language    :  {_get(settings, 'language')}",
+            f"Port        :  {_get(settings, 'port')}",
+            f"Output dir  :  {output_dir or '(project root)'}",
+            f"Test subdir :  {_get(settings, 'test_subdir')}",
+            "Templates",
+            "Reset to defaults",
+            "Exit",
+        ]
 
-        choice = input("\n  Choose option: ").strip()
+        idx = _arrow_select("cp-fetch Configuration", options, current=idx)
 
-        if choice == "0":
+        if idx == -1 or _HANDLERS[idx] == "exit":
             print("  Bye.")
             break
 
-        elif choice == "1":
+        elif _HANDLERS[idx] == "language":
             _language_menu(settings)
 
-        elif choice == "2":
-            val = _prompt("Port", _get(settings, "port"))
-            if val:
+        elif _HANDLERS[idx] == "port":
+            val = _prompt_with_esc("Port", _get(settings, "port"))
+            if val is None:
+                pass
+            elif val:
                 try:
                     settings["port"] = int(val)
                     _save(settings)
                 except ValueError:
                     print("  Invalid port number.")
 
-        elif choice == "3":
+        elif _HANDLERS[idx] == "output_dir":
             current = _get(settings, "output_dir") or "(project root)"
-            val = input(f"  Output dir [{current}] (blank = project root): ").strip()
-            settings["output_dir"] = val
-            _save(settings)
+            val = _prompt_with_esc("Output dir (blank = project root)", current)
+            if val is not None:
+                settings["output_dir"] = val
+                _save(settings)
 
-        elif choice == "4":
-            val = _prompt("Test subdir", _get(settings, "test_subdir"))
-            if val:
+        elif _HANDLERS[idx] == "test_subdir":
+            val = _prompt_with_esc("Test subdir", _get(settings, "test_subdir"))
+            if val is None:
+                pass
+            elif val:
                 settings["test_subdir"] = val
                 _save(settings)
 
-        elif choice == "5":
+        elif _HANDLERS[idx] == "templates":
             _templates_menu(settings)
 
-        else:
-            print("  Invalid option.")
+        elif _HANDLERS[idx] == "reset":
+            _reset_to_defaults()

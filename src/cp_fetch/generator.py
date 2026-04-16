@@ -28,13 +28,12 @@ def generate_problem_files(problem_data):
         f.write(cpp_content)
 
     if tests:
-        os.makedirs(TEST_DIR, exist_ok=True)
+        problem_test_dir = os.path.join(TEST_DIR, sanitize_filename(name))
+        os.makedirs(problem_test_dir, exist_ok=True)
         for i, test in enumerate(tests, start=1):
-            with open(os.path.join(TEST_DIR, f"{i}.in"), "w", encoding="utf-8") as f_in:
+            with open(os.path.join(problem_test_dir, f"{i}.in"), "w", encoding="utf-8") as f_in:
                 f_in.write(test.get("input", ""))
-            with open(
-                os.path.join(TEST_DIR, f"{i}.out"), "w", encoding="utf-8"
-            ) as f_out:
+            with open(os.path.join(problem_test_dir, f"{i}.out"), "w", encoding="utf-8") as f_out:
                 f_out.write(test.get("output", ""))
 
     return filename, len(tests), problem_data.get("group", "Unknown"), name
