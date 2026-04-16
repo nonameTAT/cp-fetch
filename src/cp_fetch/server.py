@@ -1,7 +1,7 @@
 import json
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from src.config import PORT
-from src.generator import generate_problem_files
+from src.cp_fetch.config import PORT
+from src.cp_fetch.generator import generate_problem_files
 
 
 class CompetitiveCompanionHandler(BaseHTTPRequestHandler):

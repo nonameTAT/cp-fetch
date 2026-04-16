@@ -1,4 +1,4 @@
-from src import BASE_DIR, TEST_DIR
+from src.cp_fetch.config import BASE_DIR, TEST_DIR, LANGUAGE, TEMPLATES, FILE_EXTENSIONS
 import re
 import os
 
@@ -14,28 +14,15 @@ def generate_problem_files(problem_data):
     memory_limit = problem_data.get("memoryLimit", "Unknown")
     tests = problem_data.get("tests", [])
 
-    filename = os.path.join(BASE_DIR, f"{sanitize_filename(name)}.cpp")
+    ext = FILE_EXTENSIONS[LANGUAGE]
+    filename = os.path.join(BASE_DIR, f"{sanitize_filename(name)}.{ext}")
 
-    cpp_content = f"""/**
- * Problem Name: {name}
- * URL: {url}
- * Time Limit: {time_limit} ms
- * Memory Limit: {memory_limit} MB
- */
-
-#include <iostream>
-
-using namespace std;
-
-int main() {{
-    ios_base::sync_with_stdio(false);
-    cin.tie(NULL);
-
-    // Your code here
-
-    return 0;
-}}
-"""
+    cpp_content = TEMPLATES[LANGUAGE].format(
+        name=name,
+        url=url,
+        time_limit=time_limit,
+        memory_limit=memory_limit,
+    )
 
     with open(filename, "w", encoding="utf-8") as f:
         f.write(cpp_content)
