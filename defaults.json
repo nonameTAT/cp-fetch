@@ -8,5 +8,23 @@
     "python": "# Problem Name: {name}\n# URL: {url}\n# Time Limit: {time_limit} ms\n# Memory Limit: {memory_limit} MB\n",
     "java": "/**\n * Problem Name: {name}\n * URL: {url}\n * Time Limit: {time_limit} ms\n * Memory Limit: {memory_limit} MB\n */\n",
     "javascript": "/**\n * Problem Name: {name}\n * URL: {url}\n * Time Limit: {time_limit} ms\n * Memory Limit: {memory_limit} MB\n */\n"
+  },
+  "commands": {
+    "cpp": {
+      "compile": "g++ -O2 -o {binary} {source}",
+      "run": "{binary}"
+    },
+    "python": {
+      "compile": null,
+      "run": "python3 {source}"
+    },
+    "java": {
+      "compile": "javac {source}",
+      "run": "java -cp {classpath} Main"
+    },
+    "javascript": {
+      "compile": null,
+      "run": "node {source}"
+    }
   }
 }

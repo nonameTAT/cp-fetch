@@ -27,6 +27,7 @@ def _init_settings():
     # Fill any missing top-level keys from defaults and write back
     merged = {**DEFAULTS, **existing}
     merged["templates"] = {**DEFAULTS["templates"], **existing.get("templates", {})}
+    merged["commands"] = {**DEFAULTS["commands"], **existing.get("commands", {})}
     with open(SETTINGS_PATH, "w", encoding="utf-8") as f:
         json.dump(merged, f, indent=2, ensure_ascii=False)
     return merged
@@ -41,3 +42,4 @@ BASE_DIR = _output_dir if _output_dir else _PROJECT_ROOT
 TEST_DIR = os.path.join(BASE_DIR, _s["test_subdir"])
 
 TEMPLATES = _s["templates"]
+COMMANDS  = _s["commands"]
