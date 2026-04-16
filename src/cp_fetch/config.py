@@ -37,7 +37,7 @@ _s = _init_settings()
 PORT = _s["port"]
 LANGUAGE = _s["language"]
 
-_output_dir = _s["output_dir"]
+_output_dir = os.path.expanduser(_s["output_dir"])
 BASE_DIR = _output_dir if _output_dir else _PROJECT_ROOT
 TEST_DIR = os.path.join(BASE_DIR, _s["test_subdir"])
 

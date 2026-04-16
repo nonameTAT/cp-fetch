@@ -20,7 +20,8 @@ _TIMEOUT = 5  # seconds per test case
 
 def _resolve(template, **kwargs):
     """Substitute placeholders in a command template and split into a list."""
-    return shlex.split(template.format(**kwargs))
+    quoted = {k: shlex.quote(str(v)) for k, v in kwargs.items()}
+    return shlex.split(template.format(**quoted))
 
 
 def _compile(language, source):
@@ -135,3 +136,11 @@ def run_tests(problem_name):
     print(sep)
     color = _GREEN if passed == len(test_indices) else _RED
     print(f"  {color}{_BOLD}{passed}/{len(test_indices)} passed{_RESET}\n")
+
+
+if __name__ == "__main__":
+    import sys
+    if len(sys.argv) < 2:
+        print("Usage: python -m src.cp_test.runner <problem_name>")
+        sys.exit(1)
+    run_tests(sys.argv[1])

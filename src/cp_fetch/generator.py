@@ -8,7 +8,7 @@ def sanitize_filename(name):
 
 
 def generate_problem_files(problem_data):
-    name = problem_data.get("name", "Unknown")
+    name = problem_data.get("name", "Unknown").strip("'")
     url = problem_data.get("url", "Unknown URL")
     time_limit = problem_data.get("timeLimit", "Unknown")
     memory_limit = problem_data.get("memoryLimit", "Unknown")
