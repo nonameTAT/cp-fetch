@@ -1,0 +1,12 @@
+{
+  "port": 10043,
+  "language": "cpp",
+  "output_dir": "",
+  "test_subdir": "test",
+  "templates": {
+    "cpp": "/**\n * Problem Name: {name}\n * URL: {url}\n * Time Limit: {time_limit} ms\n * Memory Limit: {memory_limit} MB\n */\n",
+    "python": "# Problem Name: {name}\n# URL: {url}\n# Time Limit: {time_limit} ms\n# Memory Limit: {memory_limit} MB\n",
+    "java": "/**\n * Problem Name: {name}\n * URL: {url}\n * Time Limit: {time_limit} ms\n * Memory Limit: {memory_limit} MB\n */\n",
+    "javascript": "/**\n * Problem Name: {name}\n * URL: {url}\n * Time Limit: {time_limit} ms\n * Memory Limit: {memory_limit} MB\n */\n"
+  }
+}
